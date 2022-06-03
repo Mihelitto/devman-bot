@@ -44,13 +44,13 @@ async def main():
         while True:
             try:
                 response = requests.get(long_pulling_url, params=params, headers=headers, timeout=100)
-            except (ReadTimeout, ConnectionError):
+            except ReadTimeout:
+                continue
+            except ConnectionError:
                 logging.warning('Connection failure')
                 fail_connection_count += 1
                 if fail_connection_count > 10:
-                    time.sleep(10 * fail_connection_count)
-                else:
-                    time.sleep(fail_connection_count)
+                    time.sleep(10)
                 continue
             except:
                 logging.error('Something wrong')
