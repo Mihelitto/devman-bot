@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import time
 
 from dotenv import load_dotenv
 import telegram
@@ -35,6 +36,8 @@ async def main():
         'Cсылка на урок: {new_attempt[lesson_url]}.'
     )
 
+    fail_connection_count = 0
+
     bot = telegram.Bot(tg_token)
     async with bot:
 
@@ -43,11 +46,18 @@ async def main():
                 response = requests.get(long_pulling_url, params=params, headers=headers, timeout=100)
             except (ReadTimeout, ConnectionError):
                 logging.warning('Connection failure')
+                fail_connection_count += 1
+                if fail_connection_count > 10:
+                    time.sleep(10 * fail_connection_count)
+                else:
+                    time.sleep(fail_connection_count)
                 continue
             except:
                 logging.error('Something wrong')
+                time.sleep(10)
                 continue
 
+            fail_connection_count = 0
             if response.ok:
                 works = response.json()
                 if works['status'] == 'timeout':
