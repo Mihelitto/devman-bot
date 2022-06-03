@@ -9,7 +9,7 @@ import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 
 
-async def main():
+def main():
     load_dotenv()
     tg_token = os.getenv('TG_BOT_TOKEN')
     chat_id = os.getenv('CHAT_ID')
@@ -39,46 +39,44 @@ async def main():
     fail_connection_count = 0
 
     bot = telegram.Bot(tg_token)
-    async with bot:
-
-        while True:
-            try:
-                response = requests.get(long_pulling_url, params=params, headers=headers, timeout=100)
-            except ReadTimeout:
-                continue
-            except ConnectionError:
-                logging.warning('Connection failure')
-                fail_connection_count += 1
-                if fail_connection_count > 10:
-                    time.sleep(10)
-                continue
-            except:
-                logging.error('Something wrong')
+    while True:
+        try:
+            response = requests.get(long_pulling_url, params=params, headers=headers, timeout=100)
+        except ReadTimeout:
+            continue
+        except ConnectionError:
+            logging.warning('Connection failure')
+            fail_connection_count += 1
+            if fail_connection_count > 10:
                 time.sleep(10)
-                continue
+            continue
+        except:
+            logging.error('Something wrong')
+            time.sleep(10)
+            continue
 
-            fail_connection_count = 0
-            if response.ok:
-                works = response.json()
-                if works['status'] == 'timeout':
-                    params = {'timestamp': works['timestamp_to_request']}
-                    logging.info('Server timeout received')
-                elif works['status'] == 'found':
-                    params = {'timestamp': works['last_attempt_timestamp']}
-                    logging.info('Review found')
-                    for new_attempt in works['new_attempts']:
+        fail_connection_count = 0
+        if response.ok:
+            works = response.json()
+            if works['status'] == 'timeout':
+                params = {'timestamp': works['timestamp_to_request']}
+                logging.info('Server timeout received')
+            elif works['status'] == 'found':
+                params = {'timestamp': works['last_attempt_timestamp']}
+                logging.info('Review found')
+                for new_attempt in works['new_attempts']:
 
-                        if new_attempt['is_negative']:
-                            message = bed_review_message_template.format(new_attempt=new_attempt)
-                        else:
-                            message = good_review_message_template.format(new_attempt=new_attempt)
+                    if new_attempt['is_negative']:
+                        message = bed_review_message_template.format(new_attempt=new_attempt)
+                    else:
+                        message = good_review_message_template.format(new_attempt=new_attempt)
 
-                        await bot.send_message(text=message, chat_id=chat_id)
-                else:
-                    logging.warning('Unrecognized response')
+                    bot.send_message(text=message, chat_id=chat_id)
             else:
-                logging.error('Bed request')
+                logging.warning('Unrecognized response')
+        else:
+            logging.error('Bed request')
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
