@@ -9,16 +9,38 @@ import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 
 
+logger = logging.getLogger('bot')
+
+
+class TGBotLogsHandler(logging.Handler):
+
+    def __init__(self, tg_bot, chat_id):
+        super().__init__()
+        self.tg_bot = tg_bot
+        self.chat_id = chat_id
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        self.tg_bot.send_message(text=log_entry, chat_id=self.chat_id)
+
+
 def main():
     load_dotenv()
     tg_token = os.getenv('TG_BOT_TOKEN')
     chat_id = os.getenv('CHAT_ID')
     dvmn_token = os.getenv('DVMN_TOKEN')
-    if not tg_token:
-        logging.error('Telegram token not found')
-        exit()
 
-    logging.basicConfig(level=logging.INFO)
+    bot = telegram.Bot(tg_token)
+
+    logging.basicConfig(
+        level=logging.WARNING,
+        format='%(asctime)s %(levelname)s - %(filename)s:%(lineno)d - %(message)s',
+    )
+    logger.addHandler(TGBotLogsHandler(bot, chat_id))
+
+    if not tg_token:
+        logger.error('Telegram token not found')
+        exit()
 
     long_pulling_url = 'https://dvmn.org/api/long_polling/'
     headers = {'Authorization': f'Token {dvmn_token}'}
@@ -38,20 +60,20 @@ def main():
 
     fail_connection_count = 0
 
-    bot = telegram.Bot(tg_token)
+    logger.info('Bot started')
     while True:
         try:
-            response = requests.get(long_pulling_url, params=params, headers=headers, timeout=100)
+            response = requests.get(long_pulling_url, params=params, headers=headers, timeout=10)
         except ReadTimeout:
             continue
         except ConnectionError:
-            logging.warning('Connection failure')
+            logger.warning('Connection failure')
             fail_connection_count += 1
             if fail_connection_count > 10:
                 time.sleep(10)
             continue
         except:
-            logging.error('Something wrong')
+            logger.error('Something wrong')
             time.sleep(10)
             continue
 
@@ -60,10 +82,10 @@ def main():
             works = response.json()
             if works['status'] == 'timeout':
                 params = {'timestamp': works['timestamp_to_request']}
-                logging.info('Server timeout received')
+                logger.info('Server timeout received')
             elif works['status'] == 'found':
                 params = {'timestamp': works['last_attempt_timestamp']}
-                logging.info('Review found')
+                logger.info('Review found')
                 for new_attempt in works['new_attempts']:
 
                     if new_attempt['is_negative']:
@@ -73,9 +95,9 @@ def main():
 
                     bot.send_message(text=message, chat_id=chat_id)
             else:
-                logging.warning('Unrecognized response')
+                logger.warning('Unrecognized response')
         else:
-            logging.error('Bed request')
+            logger.error('Bed request')
 
 
 if __name__ == '__main__':
